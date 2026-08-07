@@ -71,8 +71,6 @@ dependencies {
     implementation("com.google.android.material:material:1.14.0")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.22.3")
 
-    implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
-    implementation("com.google.firebase:firebase-messaging-ktx:24.1.2")
     testImplementation("junit:junit:4.13.2")
     testImplementation("io.mockk:mockk-android:1.14.11")
     testImplementation("io.mockk:mockk-agent:1.14.11")

@@ -19,7 +19,6 @@ import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSArray
 import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
-import com.google.firebase.messaging.FirebaseMessaging
 
 const val LOCAL_NOTIFICATIONS = "permissionState"
 
@@ -199,14 +198,6 @@ class NotificationPlugin(private val activity: Activity): Plugin(activity) {
         return
       }
     }
-
-    // Handle push notification click (Firebase background notification)
-    // Firebase may use different actions, so check for push data regardless of action
-    val pushData = extractPushNotificationData(intent)
-    if (pushData != null) {
-      Logger.debug(Logger.tags(TAG), "Push notification clicked with data: $pushData")
-      triggerNotificationClicked(-1, pushData)
-    }
   }
 
   private fun extractLocalNotificationData(intent: Intent): JSObject? {
@@ -380,134 +371,30 @@ class NotificationPlugin(private val activity: Activity): Plugin(activity) {
 
   @Command
   fun registerForPushNotifications(invoke: Invoke) {
-    if (!BuildConfig.ENABLE_PUSH_NOTIFICATIONS) {
-      invoke.reject("Push notifications are disabled in this build")
-      return
-    }
-
-    // First check if notifications are enabled
-    if (!manager.areNotificationsEnabled()) {
-      // Request permissions first
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        if (getPermissionState(LOCAL_NOTIFICATIONS) !== PermissionState.GRANTED) {
-          // Request permissions and then get token
-          pendingTokenInvoke = invoke
-          requestPermissionForAlias(LOCAL_NOTIFICATIONS, invoke, "pushPermissionsCallback")
-          return
-        }
-      } else {
-        invoke.reject("Notification permissions not granted")
-        return
-      }
-    }
-
-    // If we already have a cached token, return it immediately
-    cachedToken?.let {
-      val result = JSObject()
-      result.put("deviceToken", it)
-      invoke.resolve(result)
-      return
-    }
-
-    // Store the invoke to respond later when we get the token
-    pendingTokenInvoke = invoke
-
-    // Request the FCM token
-    getFirebaseToken()
+    invoke.reject("Push notifications are disabled in this build")
+    return
   }
 
   @Command
   fun unregisterForPushNotifications(invoke: Invoke) {
-    if (!BuildConfig.ENABLE_PUSH_NOTIFICATIONS) {
-      invoke.reject("Push notifications are disabled in this build")
-      return
-    }
-
-    FirebaseMessaging.getInstance().deleteToken().addOnCompleteListener { task ->
-      if (!task.isSuccessful) {
-        invoke.reject("Failed to delete FCM token: ${task.exception?.message}")
-        return@addOnCompleteListener
-      }
-      cachedToken = null
-      invoke.resolve()
-    }
+    invoke.reject("Push notifications are disabled in this build")
+    return
   }
 
   @PermissionCallback
   private fun pushPermissionsCallback(invoke: Invoke) {
-    if (!manager.areNotificationsEnabled()) {
-      invoke.reject("Notification permissions denied")
-      pendingTokenInvoke = null
-      return
-    }
-
-    // Permissions granted, now get the token
-    getFirebaseToken()
+    invoke.reject("Notification permissions denied")
+    return
   }
 
-  private fun getFirebaseToken() {
-    if (!BuildConfig.ENABLE_PUSH_NOTIFICATIONS) {
-      pendingTokenInvoke?.reject("Push notifications are disabled in this build")
-      pendingTokenInvoke = null
-      return
-    }
-
-    FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-      if (!task.isSuccessful) {
-        val errorMessage = "Failed to get FCM token: ${task.exception?.message}"
-        val errorData = JSObject()
-        errorData.put("message", errorMessage)
-        trigger("push-error", errorData)
-        pendingTokenInvoke?.reject(errorMessage)
-        pendingTokenInvoke = null
-        return@addOnCompleteListener
-      }
-
-      val token = task.result
-      cachedToken = token
-      val result = JSObject()
-      result.put("deviceToken", token)
-      pendingTokenInvoke?.resolve(result)
-      pendingTokenInvoke = null
-    }
-  }
-
-  // Called by TauriFirebaseMessagingService when a new token is received
+  // stub
   fun handleNewToken(token: String) {
-    if (!BuildConfig.ENABLE_PUSH_NOTIFICATIONS) return
-
-    cachedToken = token
-    // Trigger push-token event to notify the frontend about the token
-    val data = JSObject()
-    data.put("token", token)
-    trigger("push-token", data)
+    return
   }
 
-  // Called by TauriFirebaseMessagingService when a push message is received
+  // stub
   fun triggerPushMessage(pushData: Map<String, Any>) {
-    if (!BuildConfig.ENABLE_PUSH_NOTIFICATIONS) return
-
-    val data = JSObject()
-    for ((key, value) in pushData) {
-      when (value) {
-        is String -> data.put(key, value)
-        is Int -> data.put(key, value)
-        is Long -> data.put(key, value)
-        is Double -> data.put(key, value)
-        is Boolean -> data.put(key, value)
-        is Map<*, *> -> {
-          val nestedObj = JSObject()
-          @Suppress("UNCHECKED_CAST")
-          val map = value as Map<String, Any>
-          for ((k, v) in map) {
-            nestedObj.put(k, v.toString())
-          }
-          data.put(key, nestedObj)
-        }
-        else -> data.put(key, value.toString())
-      }
-    }
-    trigger("push-message", data)
+    return
   }
 
   @Command
